@@ -23,6 +23,12 @@
         "utility": "cpp",
         "xmemory": "cpp",
         "xtr1common": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "iomanip": "cpp",
+        "cassert": "cpp",
+        "fstream": "cpp",
+        "ostream": "cpp",
+        "xlocmes": "cpp",
+        "xstring": "cpp"
     }
 }

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "SPSCQueue.h"
+#include "MsgQueue.h"
 #include "data.h"
 
 class PwStreamImpl;
 
 class PwStream {
 public:
-  explicit PwStream(rigtorp::SPSCQueue<PcmData> *pcm_queue);
+  explicit PwStream(MsgQueue<PcmData> *pcm_queue);
   ~PwStream();
 
   void run();

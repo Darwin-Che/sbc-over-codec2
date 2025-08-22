@@ -11,13 +11,13 @@
 #include <iostream>
 #include <memory>
 
-#include "SPSCQueue.h"
+#include "MsgQueue.h"
 #include "data.h"
 #include "pw-stream.h"
 
 class PwStreamImpl {
 public:
-  PwStreamImpl(rigtorp::SPSCQueue<PcmData> *pcm_queue) : pcm_queue(pcm_queue) {
+  PwStreamImpl(MsgQueue<PcmData> *pcm_queue) : pcm_queue(pcm_queue) {
     pw_init(nullptr, nullptr);
 
     loop = pw_main_loop_new(nullptr);
@@ -26,10 +26,10 @@ public:
     }
 
     // Register signal handlers
-    pw_loop_add_signal(pw_main_loop_get_loop(loop), SIGINT, &PwStreamImpl::do_quit,
-                       this);
-    pw_loop_add_signal(pw_main_loop_get_loop(loop), SIGTERM, &PwStreamImpl::do_quit,
-                       this);
+    pw_loop_add_signal(pw_main_loop_get_loop(loop), SIGINT,
+                       &PwStreamImpl::do_quit, this);
+    pw_loop_add_signal(pw_main_loop_get_loop(loop), SIGTERM,
+                       &PwStreamImpl::do_quit, this);
 
     auto *props =
         pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY,
@@ -67,18 +67,70 @@ public:
 
   void run() { pw_main_loop_run(loop); }
 
+  void reset_session() {
+    this->new_session = true;
+
+    this->pcm_data.session_id += 1;
+    this->pcm_data.piece_id = 0;
+    this->pcm_data.samples_n = 0;
+
+    this->zero_samples = 0;
+  }
+
+  void send_data(int16_t *samples, uint32_t n_samples) {
+    while (n_samples != 0) {
+      uint32_t copy_amount = PCM_SAMPLE_MAX - this->pcm_data.samples_n;
+
+      if (copy_amount > n_samples)
+        copy_amount = n_samples;
+
+      memcpy(&this->pcm_data.samples[this->pcm_data.samples_n], samples,
+             copy_amount * sizeof(int16_t));
+
+      n_samples -= copy_amount;
+      samples += copy_amount;
+
+      this->pcm_data.samples_n += copy_amount;
+
+      if (this->pcm_data.samples_n == PCM_SAMPLE_MAX)
+        this->emit_pcm_data();
+    }
+  }
+
+  void emit_pcm_data() {
+    std::cout << "emit_pcm_data " << this->pcm_data.session_id << "."
+              << this->pcm_data.piece_id << std::endl;
+
+    this->pcm_queue->send(this->pcm_data);
+
+    this->pcm_data.piece_id += 1;
+    this->pcm_data.samples_n = 0;
+  }
+
 private:
   struct pw_main_loop *loop = nullptr;
   struct pw_stream *stream = nullptr;
   struct spa_audio_info format = {};
 
-  rigtorp::SPSCQueue<PcmData> *pcm_queue;
+  MsgQueue<PcmData> *pcm_queue;
 
   PcmData pcm_data = {0};
 
+  uint64_t zero_samples = 0;
+
+  bool new_session = true;
+
   static void do_quit(void *data, int) {
+
     auto *ctx = static_cast<PwStreamImpl *>(data);
+
+    ctx->pcm_queue->close();
+
+    std::cout << "Closed pcm_queue" << std::endl;
+
     pw_main_loop_quit(ctx->loop);
+
+    std::cout << "PwStream Do Quit Processed" << std::endl;
   }
 
   static void on_stream_param_changed(void *data, uint32_t id,
@@ -120,36 +172,76 @@ private:
     uint32_t n_samples = buf->datas[0].chunk->size / sizeof(int16_t);
 
     // Move cursor up 2 lines
-    std::cout << "\033[2A";
+    // std::cout << "\033[2A";
 
-    std::cout << "captured " << n_samples << " samples\n";
+    // std::cout << "captured " << n_samples << " samples\n";
 
-    int16_t max = 0;
-    for (uint32_t i = 0; i < n_samples; ++i) {
-      if (samples[i] > max)
-        max = samples[i];
-    }
+    // int16_t max = 0;
+    // for (uint32_t i = 0; i < n_samples; ++i) {
+    //   if (samples[i] > max)
+    //     max = samples[i];
+    // }
 
-    std::cout << "peak:" << max << "\n" << std::flush;
+    // std::cout << "peak:" << max << "\n" << std::flush;
 
-    // Actual process
-    
+    /////// Actual process
+
     // Session change check: more than 1 sec of silence
     // New session, only start sending if non zero data comes in
     // Always starts with the first non zero sample
 
-    // Whenever 160 samples are collected, send an object on the queue
+    // Whenever PCM_SAMPLE_MAX samples are collected, send an object on the queue
     // Signal via conditional variable
 
     // Make a wrapper for the queue with conditonal variables and sample
+
+    uint32_t idx_first_nonzero = 0;
+
+    while (idx_first_nonzero < n_samples) {
+      if (samples[idx_first_nonzero] != 0)
+        break;
+      ++idx_first_nonzero;
+    }
+
+    if (ctx->new_session) {
+      if (idx_first_nonzero != n_samples) {
+        ctx->new_session = false;
+
+        ctx->send_data(&samples[idx_first_nonzero],
+                       n_samples - idx_first_nonzero);
+      }
+    } else {
+      ctx->send_data(samples, n_samples);
+
+      if (idx_first_nonzero == n_samples) {
+        ctx->zero_samples += n_samples;
+
+        // More than 1s of silence
+        if (ctx->zero_samples >= 8000) {
+          // Reset the session
+          ctx->reset_session();
+        }
+      } else {
+        ctx->zero_samples = 0;
+      }
+    }
 
     pw_stream_queue_buffer(ctx->stream, b);
   }
 
   static constexpr pw_stream_events stream_events = {
-      PW_VERSION_STREAM_EVENTS,
+      .version = PW_VERSION_STREAM_EVENTS,
       .param_changed = &PwStreamImpl::on_stream_param_changed,
       .process = &PwStreamImpl::on_process,
+      // .destroy = nullptr,
+      // .state_changed = nullptr,
+      // .control_info = nullptr,
+      // .io_changed = nullptr,
+      // .add_buffer = nullptr,
+      // .remove_buffer = nullptr,
+      // .drained = nullptr,
+      // .command = nullptr,
+      // .trigger_done = nullptr
   };
 };
 
@@ -165,13 +257,9 @@ private:
 //   return EXIT_SUCCESS;
 // }
 
-
-PwStream::PwStream(rigtorp::SPSCQueue<PcmData> *pcm_queue)
+PwStream::PwStream(MsgQueue<PcmData> *pcm_queue)
     : impl_(std::make_unique<PwStreamImpl>(pcm_queue)) {}
 
 PwStream::~PwStream() = default;
 
-
-void PwStream::run() {
-    impl_->run();
-}
+void PwStream::run() { impl_->run(); }

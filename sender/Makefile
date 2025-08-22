@@ -1,4 +1,4 @@
-CFLAGS = -Wall $(shell pkg-config --cflags libpipewire-0.3)
+CFLAGS = -Wall -std=c++20 $(shell pkg-config --cflags libpipewire-0.3)
 LDFLAGS = $(shell pkg-config --libs libpipewire-0.3) -lm
 
 OBJS = main.o pw-stream.o
