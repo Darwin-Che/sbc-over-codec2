@@ -15,6 +15,12 @@
 #include "data.h"
 #include "pw-stream.h"
 
+#define PW_STREAM_DEBUG 1
+
+#ifdef PW_STREAM_DEBUG
+#include "wav_file.h"
+#endif
+
 class PwStreamImpl {
 public:
   PwStreamImpl(MsgQueue<PcmData> *pcm_queue) : pcm_queue(pcm_queue) {
@@ -55,6 +61,10 @@ public:
                                                    PW_STREAM_FLAG_MAP_BUFFERS |
                                                    PW_STREAM_FLAG_RT_PROCESS),
                       params, 1);
+
+#ifdef PW_STREAM_DEBUG
+    wav_file = new WavFile("pw-stream-debug.wav");
+#endif
   }
 
   ~PwStreamImpl() {
@@ -63,6 +73,10 @@ public:
     if (loop)
       pw_main_loop_destroy(loop);
     pw_deinit();
+
+#ifdef PW_STREAM_DEBUG
+    delete wav_file;
+#endif
   }
 
   void run() { pw_main_loop_run(loop); }
@@ -98,10 +112,14 @@ public:
   }
 
   void emit_pcm_data() {
-    std::cout << "emit_pcm_data " << this->pcm_data.session_id << "."
-              << this->pcm_data.piece_id << std::endl;
+    // std::cout << "emit_pcm_data " << this->pcm_data.session_id << "."
+    //           << this->pcm_data.piece_id << std::endl;
 
     this->pcm_queue->send(this->pcm_data);
+
+#ifdef PW_STREAM_DEBUG
+    this->wav_file->write_pcm(this->pcm_data);
+#endif
 
     this->pcm_data.piece_id += 1;
     this->pcm_data.samples_n = 0;
@@ -119,6 +137,10 @@ private:
   uint64_t zero_samples = 0;
 
   bool new_session = true;
+
+#ifdef PW_STREAM_DEBUG
+  WavFile *wav_file;
+#endif
 
   static void do_quit(void *data, int) {
 
@@ -190,8 +212,8 @@ private:
     // New session, only start sending if non zero data comes in
     // Always starts with the first non zero sample
 
-    // Whenever PCM_SAMPLE_MAX samples are collected, send an object on the queue
-    // Signal via conditional variable
+    // Whenever PCM_SAMPLE_MAX samples are collected, send an object on the
+    // queue Signal via conditional variable
 
     // Make a wrapper for the queue with conditonal variables and sample
 

@@ -55,16 +55,16 @@ int main() {
 
       codec2_queue.send(codec2_data);
 
-      std::cout << "encoder " << data.session_id << "." << data.piece_id;
-      std::cout << " :: ";
-      std::cout << std::hex << std::setw(2) << std::setfill('0');
+      // std::cout << "encoder " << data.session_id << "." << data.piece_id;
+      // std::cout << " :: ";
+      // std::cout << std::hex << std::setw(2) << std::setfill('0');
 
-      for (size_t i = 0; i < CODEC2_FRAME_MAX; ++i) {
-        std::cout << static_cast<int>(codec2_data.bytes[i]) << " ";
-      }
+      // for (size_t i = 0; i < CODEC2_FRAME_MAX; ++i) {
+      //   std::cout << static_cast<int>(codec2_data.bytes[i]) << " ";
+      // }
 
-      std::cout << std::dec;
-      std::cout << std::endl;
+      // std::cout << std::dec;
+      // std::cout << std::endl;
     }
 
     std::cout << "encoder_worker Finished" << std::endl;

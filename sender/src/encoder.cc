@@ -4,7 +4,7 @@
 #include <iostream>
 
 Encoder::Encoder() {
-  codec2 = codec2_create(CODEC2_MODE_700C);
+  codec2 = codec2_create(CODEC2_MODE);
   size_t nsam = codec2_samples_per_frame(codec2);
   assert(nsam == PCM_SAMPLE_MAX);
   size_t bytes_per_frame = codec2_bytes_per_frame(codec2);

@@ -29,6 +29,28 @@
         "fstream": "cpp",
         "ostream": "cpp",
         "xlocmes": "cpp",
-        "xstring": "cpp"
-    }
+        "xstring": "cpp",
+        "format": "cpp",
+        "bit": "cpp",
+        "cctype": "cpp",
+        "charconv": "cpp",
+        "clocale": "cpp",
+        "cmath": "cpp",
+        "ios": "cpp",
+        "istream": "cpp",
+        "iterator": "cpp",
+        "locale": "cpp",
+        "stdexcept": "cpp",
+        "streambuf": "cpp",
+        "system_error": "cpp",
+        "xfacet": "cpp",
+        "xiosbase": "cpp",
+        "xlocale": "cpp",
+        "xlocbuf": "cpp",
+        "xlocinfo": "cpp",
+        "xlocmon": "cpp",
+        "xlocnum": "cpp",
+        "xloctime": "cpp"
+    },
+    "files.eol": "\n"
 }
